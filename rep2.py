@@ -1,8 +1,3 @@
-## Root config files
-
-### `package.json`
-
-```json
 {
   "name": "femai-advisor",
   "version": "1.0.0",
@@ -32,7 +27,9 @@
 }
 ```
 
-### `tsconfig.json`
+---
+
+## FILE: tsconfig.json
 
 ```json
 {
@@ -60,7 +57,9 @@
 }
 ```
 
-### `next-env.d.ts`
+---
+
+## FILE: next-env.d.ts
 
 ```ts
 /// <reference types="next" />
@@ -69,7 +68,9 @@
 // NOTE: This file should not be edited
 ```
 
-### `next.config.mjs`
+---
+
+## FILE: next.config.mjs
 
 ```js
 /** @type {import('next').NextConfig} */
@@ -83,7 +84,9 @@ const nextConfig = {
 export default nextConfig;
 ```
 
-### `postcss.config.mjs`
+---
+
+## FILE: postcss.config.mjs
 
 ```js
 export default {
@@ -94,7 +97,9 @@ export default {
 };
 ```
 
-### `tailwind.config.ts`
+---
+
+## FILE: tailwind.config.ts
 
 ```ts
 import type { Config } from "tailwindcss";
@@ -139,7 +144,9 @@ const config: Config = {
 export default config;
 ```
 
-### `.gitignore`
+---
+
+## FILE: .gitignore
 
 ```
 # Dependencies
@@ -183,9 +190,7 @@ next-env.d.ts
 
 ---
 
-## App styles and layout
-
-### `app/globals.css`
+## FILE: app/globals.css
 
 ```css
 @tailwind base;
@@ -218,7 +223,9 @@ body {
 }
 ```
 
-### `app/layout.tsx`
+---
+
+## FILE: app/layout.tsx
 
 ```tsx
 import type { Metadata } from "next";
@@ -301,9 +308,7 @@ export default function RootLayout({
 
 ---
 
-## Pages
-
-### `app/page.tsx` (Home / Landing)
+## FILE: app/page.tsx
 
 ```tsx
 import Link from "next/link";
@@ -432,7 +437,7 @@ export default function HomePage() {
 
 ---
 
-### `app/lib/onboarding.ts`
+## FILE: app/lib/onboarding.ts
 
 ```ts
 export type PrimaryGoal =
@@ -518,7 +523,7 @@ export function saveOnboardingProfile(profile: OnboardingProfile) {
 
 ---
 
-### `app/onboarding/page.tsx`
+## FILE: app/onboarding/page.tsx
 
 ```tsx
 "use client";
@@ -1010,7 +1015,7 @@ export default function OnboardingPage() {
 
 ---
 
-### `app/profile/page.tsx`
+## FILE: app/profile/page.tsx
 
 ```tsx
 "use client";
@@ -1243,61 +1248,690 @@ export default function ProfilePage() {
 
 ---
 
-### `app/dashboard/page.tsx`
+## FILE: app/dashboard/page.tsx
 
-Open `app/dashboard/page.tsx` in your project and copy its full contents (418 lines). It contains: state for profile, phase, sleep, exercise, budget, result; `dailyTip`, `productivitySuggestion`, `budgetInsight`; `runSimulation` (score 0–100, predicted cost, advice); and the JSX for inputs, result cards, daily tip, productivity, and budget insight.
+```tsx
+"use client";
 
----
+import { useEffect, useState } from "react";
+import {
+  OnboardingProfile,
+  loadOnboardingProfile
+} from "../lib/onboarding";
 
-### `app/advisor/page.tsx`
+type CyclePhase = "Follicular" | "Ovulatory" | "Luteal" | "Menstrual";
 
-Open `app/advisor/page.tsx` in your project and copy its full contents (227 lines). It contains: `describeTone`, `getAiResponse(input, profile)` (greetings + keyword responses + default), chat state, and the chat UI with messages and send form.
+interface SimulationResult {
+  healthScore: number;
+  predictedCost: number;
+  advice: string;
+}
 
----
+function dailyTip(phase: CyclePhase, profile: OnboardingProfile | null): string {
+  const name = profile?.name || "Today";
+  const goal = profile?.primaryGoal;
 
-## File tree (source only)
+  if (phase === "Follicular") {
+    return `${name}, your follicular phase often brings rising energy. Pair that with your goal${
+      goal ? ` of ${goal.toLowerCase()}` : ""
+    } by scheduling learning, planning, or strength sessions while you naturally feel more open and focused.`;
+  }
+  if (phase === "Ovulatory") {
+    return `Ovulatory days can feel more social and expressive. Use that boost for collaborative work, networking, or movement that feels fun—not punishing—then protect wind-down time at night.`;
+  }
+  if (phase === "Luteal") {
+    return `In your luteal phase, it's normal to feel a bit heavier or more sensitive. Build in buffers between tasks, aim for earlier sleep, and let your movement skew toward walks, Pilates, or yoga.`;
+  }
+  return `Menstrual days are a natural time for reflection and gentler output. Where possible, clear space for rest, warm foods, and lower-stakes tasks while your body does intense internal work.`;
+}
 
+function productivitySuggestion(phase: CyclePhase): string {
+  switch (phase) {
+    case "Follicular":
+      return "Use follicular energy for learning, planning, and starting new projects—your brain is primed for exploration.";
+    case "Ovulatory":
+      return "Leverage ovulatory confidence for meetings, interviews, presentations, and relationship-centered work.";
+    case "Luteal":
+      return "The luteal phase is ideal for detail work, editing, organizing, and gently closing open loops.";
+    case "Menstrual":
+    default:
+      return "During your bleed, protect time for reflection, reviewing what's working, and low-pressure admin instead of heavy lifting.";
+  }
+}
+
+function budgetInsight(
+  budget: number,
+  profile: OnboardingProfile | null
+): string {
+  if (!budget || budget <= 0) {
+    return "Consider starting with even a tiny wellness line in your budget—like $20–$40 a month you intentionally direct toward what supports you most.";
+  }
+
+  const categories = profile?.wellnessSpending || [];
+  if (categories.length === 0) {
+    return `With roughly $${Math.round(
+      budget
+    )} per month, you might test a simple split: 40% movement, 30% mental health, and 30% rest-focused comforts like massages, baths, or cozy tools.`;
+  }
+
+  if (categories.includes("Therapy/Mental Health")) {
+    return `Since therapy or mental health support is in the mix, protect that in your ~$${Math.round(
+      budget
+    )} budget first, then allocate what's left across movement and everyday comforts rather than impulse buys.`;
+  }
+
+  return `With a wellness budget of about $${Math.round(
+    budget
+  )}, choose 1–2 "non-negotiable" supports from your current spending and gently trim the rest so your money matches what truly moves the needle.`;
+}
+
+export default function DashboardPage() {
+  const [profile, setProfile] = useState<OnboardingProfile | null>(null);
+  const [phase, setPhase] = useState<CyclePhase>("Follicular");
+  const [sleepHours, setSleepHours] = useState<number>(7);
+  const [exerciseDays, setExerciseDays] = useState<number>(3);
+  const [budget, setBudget] = useState<number>(200);
+  const [result, setResult] = useState<SimulationResult | null>(null);
+
+  useEffect(() => {
+    const loaded = loadOnboardingProfile();
+    if (!loaded) return;
+
+    setProfile(loaded);
+    if (
+      loaded.currentPhase === "Follicular" ||
+      loaded.currentPhase === "Ovulatory" ||
+      loaded.currentPhase === "Luteal" ||
+      loaded.currentPhase === "Menstrual"
+    ) {
+      setPhase(loaded.currentPhase);
+    }
+    if (loaded.sleepHours) setSleepHours(loaded.sleepHours);
+    if (loaded.exerciseDays) setExerciseDays(loaded.exerciseDays);
+    if (loaded.monthlyBudget) setBudget(loaded.monthlyBudget);
+  }, []);
+
+  const runSimulation = () => {
+    let score = 75;
+
+    if (sleepHours <= 3) {
+      score -= 30;
+    } else if (sleepHours <= 5) {
+      score -= 18;
+    } else if (sleepHours < 7) {
+      score -= 8;
+    } else if (sleepHours >= 7 && sleepHours <= 9) {
+      score += 5;
+    }
+
+    if ((phase === "Luteal" || phase === "Menstrual") && sleepHours < 6) {
+      score -= 8;
+    }
+
+    if (exerciseDays === 0) {
+      score -= 20;
+    } else if (exerciseDays <= 2) {
+      score -= 8;
+    } else if (exerciseDays <= 4) {
+      score += 2;
+    } else {
+      score += 6;
+    }
+
+    const healthScore = Math.max(0, Math.min(100, Math.round(score)));
+
+    const baseline = budget || 0;
+    let predictedCost = baseline;
+
+    if (healthScore < 30) {
+      predictedCost += 200;
+    } else if (healthScore < 50) {
+      predictedCost += 120;
+    } else if (healthScore < 70) {
+      predictedCost += 60;
+    } else if (healthScore > 85) {
+      predictedCost -= 40;
+    }
+
+    predictedCost = Math.max(0, Math.round(predictedCost));
+
+    const adviceParts: string[] = [];
+
+    if (healthScore < 30) {
+      adviceParts.push(
+        "Right now your simulated wellness score is quite low, which suggests your body and nervous system are under a lot of strain. This isn't about blame—it's a signal to introduce the smallest, kindest changes possible."
+      );
+    } else if (healthScore < 50) {
+      adviceParts.push(
+        "Your simulated wellness score is on the lower side, meaning there's real opportunity to feel better with gentle, consistent shifts in sleep, movement, and stress support."
+      );
+    } else if (healthScore < 70) {
+      adviceParts.push(
+        "Your simulated wellness score is moderate. Some foundations are there, and small upgrades in rest and routine could move the needle meaningfully."
+      );
+    } else {
+      adviceParts.push(
+        "Your simulated wellness score is relatively strong. The goal now is to keep things sustainable and aligned with your cycle, rather than chasing perfection."
+      );
+    }
+
+    if (phase === "Follicular") {
+      adviceParts.push(
+        "You are in your follicular phase—energy often starts to build. This is a great window for strength training, planning, and creative work."
+      );
+    } else if (phase === "Ovulatory") {
+      adviceParts.push(
+        "You are in your ovulatory phase—social energy and confidence can feel higher. Consider scheduling collaborative work, networking, or high-intensity workouts if they feel good."
+      );
+    } else if (phase === "Luteal") {
+      adviceParts.push(
+        "You are in your luteal phase—your body is preparing to bleed. Prioritize calming routines, nourishing meals, and earlier bedtimes to support mood and energy."
+      );
+    } else if (phase === "Menstrual") {
+      adviceParts.push(
+        "You are in your menstrual phase—rest, reflection, and gentle movement are especially supportive. Give yourself permission to slow down where you can."
+      );
+    }
+
+    if (sleepHours <= 3) {
+      adviceParts.push(
+        "Sleep looks extremely short right now. If it's within your control, prioritise adding even 30–60 minutes of rest at a time, and consider speaking with a clinician if this pattern continues."
+      );
+    } else if (sleepHours < 7) {
+      adviceParts.push(
+        "Aim for a consistent 7–9 hours of sleep. Try winding down 30 minutes earlier, dimming lights, and stepping away from screens before bed."
+      );
+    } else {
+      adviceParts.push(
+        "Your sleep looks broadly supportive—keep protecting your wind-down routine and morning light exposure to stabilize energy and mood."
+      );
+    }
+
+    if (exerciseDays === 0) {
+      adviceParts.push(
+        "Movement is essentially at zero right now. Start with very small, kind goals—like a 10-minute walk most days or stretching while you watch a show. Consistency matters more than intensity."
+      );
+    } else if (exerciseDays <= 2) {
+      adviceParts.push(
+        "You are moving a bit each week already. See if you can add one more low-pressure session, like gentle yoga or a walk with a friend."
+      );
+    } else {
+      adviceParts.push(
+        "Your movement routine is a strong foundation. Check in with how your training lines up with each phase—higher intensity in follicular/ovulatory and softer movement in luteal/menstrual can feel more sustainable."
+      );
+    }
+
+    if (!budget || budget <= 0) {
+      adviceParts.push(
+        "Consider setting aside even a small monthly wellness amount—this could go toward therapy co-pays, a fitness class you love, or a calming ritual at home."
+      );
+    } else if (predictedCost > budget) {
+      adviceParts.push(
+        "Your predicted wellness expenses may sit above your current budget. You might prioritize 1–2 high-impact supports (like therapy or a class you truly enjoy) and pause lower-impact impulse purchases."
+      );
+    } else {
+      adviceParts.push(
+        "Your current budget looks aligned with your projected needs. Keep tracking where it actually goes—toward things that genuinely support your energy, mood, and long-term health."
+      );
+    }
+
+    adviceParts.push(
+      "This simulation is informational only and not medical or financial advice. Always partner with healthcare and financial professionals for personalized care."
+    );
+
+    setResult({
+      healthScore,
+      predictedCost,
+      advice: adviceParts.join(" ")
+    });
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+          Wellness &amp; Finance Dashboard
+        </h1>
+        <p className="max-w-2xl text-sm text-slate-600 sm:text-base">
+          Input your current phase, habits, and wellness budget. FemAI will
+          simulate a holistic health score, estimate wellness spending, and
+          share gentle, cycle-aware recommendations.
+        </p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[3fr,2.2fr] lg:items-start">
+        <section className="glass-card space-y-6 p-6">
+          <h2 className="text-sm font-semibold text-slate-900 sm:text-base">
+            Your current snapshot
+          </h2>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-slate-700">
+                Cycle phase
+              </label>
+              <select
+                value={phase}
+                onChange={(e) => setPhase(e.target.value as CyclePhase)}
+                className="w-full rounded-2xl border border-lavender-100 bg-white/80 px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-lavender-400"
+              >
+                <option value="Follicular">Follicular</option>
+                <option value="Ovulatory">Ovulatory</option>
+                <option value="Luteal">Luteal</option>
+                <option value="Menstrual">Menstrual</option>
+              </select>
+              <p className="text-[11px] text-slate-500">
+                Align habits and spending with how your hormones fluctuate
+                through each phase.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center justify-between text-xs font-medium text-slate-700">
+                <span>Sleep per night</span>
+                <span className="text-[11px] text-slate-500">
+                  {sleepHours} hours
+                </span>
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={12}
+                step={0.5}
+                value={sleepHours}
+                onChange={(e) => setSleepHours(parseFloat(e.target.value))}
+                className="w-full accent-lavender-500"
+              />
+              <p className="text-[11px] text-slate-500">
+                Aim for 7–9 hours, especially in luteal and menstrual phases.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center justify-between text-xs font-medium text-slate-700">
+                <span>Exercise days per week</span>
+                <span className="text-[11px] text-slate-500">
+                  {exerciseDays} days
+                </span>
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={7}
+                step={1}
+                value={exerciseDays}
+                onChange={(e) => setExerciseDays(parseInt(e.target.value, 10))}
+                className="w-full accent-lavender-500"
+              />
+              <p className="text-[11px] text-slate-500">
+                Think in terms of small, repeatable movement rather than
+                perfection.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-slate-700">
+                Monthly wellness budget (USD)
+              </label>
+              <div className="flex items-center gap-2 rounded-2xl border border-lavender-100 bg-white/80 px-3 py-2.5 shadow-sm">
+                <span className="text-xs text-slate-500">$</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={Number.isNaN(budget) ? "" : budget}
+                  onChange={(e) => setBudget(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-transparent text-sm text-slate-900 outline-none"
+                  placeholder="e.g. 200"
+                />
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Include therapy, coaching, classes, supplements, and
+                restorative self-care.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <p className="text-[11px] text-slate-500">
+              This is a gentle simulation, not medical or financial advice.
+            </p>
+            <button
+              type="button"
+              onClick={runSimulation}
+              className="primary-btn text-xs sm:text-sm"
+            >
+              Run simulation
+            </button>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <div className="glass-card grid gap-4 p-5 sm:grid-cols-3">
+            <div className="space-y-1 border-r border-slate-100 pr-3 sm:pr-4">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                Health score
+              </p>
+              <p className="text-3xl font-semibold text-lavender-700">
+                {result ? result.healthScore : "—"}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Higher scores reflect more supportive sleep, movement, and
+                alignment with your phase.
+              </p>
+            </div>
+
+            <div className="space-y-1 border-r border-slate-100 px-3 sm:px-4">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                Predicted monthly wellness cost
+              </p>
+              <p className="text-2xl font-semibold text-slate-900">
+                {result ? `$${result.predictedCost}` : "—"}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Includes additional care needs when your body may need more
+                support.
+              </p>
+            </div>
+
+            <div className="space-y-1 pl-3 sm:pl-4">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                Phase
+              </p>
+              <p className="text-sm font-semibold text-slate-900">{phase}</p>
+              <p className="text-[11px] text-slate-500">
+                Use this insight alongside your own body wisdom—not instead of
+                it.
+              </p>
+            </div>
+          </div>
+
+          <div className="glass-card h-56 max-h-72 overflow-y-auto p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              AI wellness recommendation
+            </p>
+            <p className="mt-3 text-sm text-slate-700">
+              {result
+                ? result.advice
+                : "Run a simulation to receive phase-aware guidance on your habits, energy, and wellness spending."}
+            </p>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="glass-card space-y-2 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Daily AI tip
+              </p>
+              <p className="text-sm text-slate-700">
+                {dailyTip(phase, profile)}
+              </p>
+            </div>
+            <div className="glass-card space-y-2 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Cycle-aware productivity
+              </p>
+              <p className="text-sm text-slate-700">
+                {productivitySuggestion(phase)}
+              </p>
+            </div>
+          </div>
+
+          <div className="glass-card space-y-2 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Wellness + finance insight
+            </p>
+            <p className="text-sm text-slate-700">
+              {budgetInsight(budget, profile)}
+            </p>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
 ```
-femai-advisor/
-├── .gitignore
-├── package.json
-├── tsconfig.json
-├── next-env.d.ts
-├── next.config.mjs
-├── postcss.config.mjs
-├── tailwind.config.ts
-├── app/
-│   ├── globals.css
-│   ├── layout.tsx
-│   ├── page.tsx
-│   ├── lib/
-│   │   └── onboarding.ts
-│   ├── onboarding/
-│   │   └── page.tsx
-│   ├── profile/
-│   │   └── page.tsx
-│   ├── dashboard/
-│   │   └── page.tsx
-│   └── advisor/
-│       └── page.tsx
-└── FEMAI_ADVISOR_FULL_SOURCE.md  (this file)
-```
 
 ---
 
-## Quick start
+## FILE: app/advisor/page.tsx
 
-1. Create a folder (e.g. `femai-advisor`) and add the root config files above.
-2. Create `app/`, `app/lib/`, `app/onboarding/`, `app/profile/`, `app/dashboard/`, `app/advisor/`.
-3. Copy the contents from your existing repo (or from the full file contents above) into:
-   - `app/globals.css`
-   - `app/layout.tsx`
-   - `app/page.tsx`
-   - `app/lib/onboarding.ts`
-   - `app/onboarding/page.tsx`
-   - `app/profile/page.tsx`
-   - `app/dashboard/page.tsx`
-   - `app/advisor/page.tsx`
-4. Run: `npm install` then `npm run dev`.
+```tsx
+"use client";
 
-The three long page components (`onboarding`, `profile`, `dashboard`, `advisor`) are in your project at the paths listed; this doc gives the exact content for the shorter files and the structure so you can replicate the app anywhere.
+import { FormEvent, useEffect, useState } from "react";
+import {
+  AiPersonaOption,
+  OnboardingProfile,
+  loadOnboardingProfile
+} from "../lib/onboarding";
+
+type Role = "user" | "ai";
+
+interface ChatMessage {
+  id: number;
+  role: Role;
+  content: string;
+}
+
+function describeTone(aiPersona?: AiPersonaOption): string {
+  switch (aiPersona) {
+    case "Scientific Explainer":
+      return "grounded and science-informed";
+    case "Motivational Trainer":
+      return "upbeat and accountability-focused";
+    case "Calm Wellness Guide":
+      return "slow, soothing, and nervous-system aware";
+    case "Supportive Coach":
+    default:
+      return "gentle, encouraging, and practical";
+  }
+}
+
+function getAiResponse(
+  input: string,
+  profile: OnboardingProfile | null
+): string {
+  const text = input.toLowerCase();
+  const name = profile?.name || "friend";
+  const goal = profile?.primaryGoal || "balancing your energy, hormones, and money";
+  const phase = profile?.currentPhase;
+  const budget = profile?.monthlyBudget;
+  const tone = describeTone(profile?.aiPersona);
+
+  if (
+    ["hi", "hey", "hello"].some((greeting) => text.startsWith(greeting)) ||
+    text.includes("how are you") ||
+    text.includes("hows your day") ||
+    text.includes("how's your day")
+  ) {
+    return `Hi ${name}, thanks for checking in with me. I'm here as your ${tone} FemAI Advisor, focused on ${goal.toLowerCase()}. You can ask me about your current phase, symptoms, sleep, stress, workouts, or how to spend your wellness budget in a way that actually supports your body and future self. What feels most important to explore together right now?`;
+  }
+
+  if (text.includes("pregnancy")) {
+    return "Thank you for sharing that you're thinking about pregnancy. It's a powerful season that benefits from both medical support and nurturing routines. Focus on a gentle, colorful diet, consistent sleep, and stress-reducing rituals like short walks, breathwork, or journaling. It's also wise to speak with a healthcare provider about preconception labs, supplements (like prenatal vitamins), and any medications. Financially, you might begin a small monthly savings bucket for prenatal care, time off work, and baby essentials—even $25–$50 per month adds up over time.";
+  }
+
+  if (text.includes("menopause") || text.includes("perimenopause")) {
+    return "Menopause and perimenopause can bring shifts in sleep, mood, temperature, and body composition—and it's completely valid to want extra support. Tracking symptoms, sleep, and energy can help you notice patterns to discuss with your clinician. Strength training, protein-rich meals, and stress management are especially supportive in this chapter. Financially, consider budgeting for hormone-informed care, therapy, and movement practices that help you feel grounded, like yoga or strength classes.";
+  }
+
+  if (text.includes("period") || text.includes("cramp")) {
+    return "Period symptoms like cramps, fatigue, and mood changes are common, but you still deserve comfort and care. Gentle movement, warmth (like a heating pad), magnesium-rich foods, and anti-inflammatory meals can ease discomfort for many people. If your pain is severe or interfering with daily life, please talk with a healthcare provider to rule out conditions like endometriosis or fibroids. From a budget perspective, you might set aside a small monthly amount for high-quality menstrual products, pain relief tools, or supportive appointments.";
+  }
+
+  if (
+    text.includes("sleep") ||
+    text.includes("insomnia") ||
+    text.includes("tired")
+  ) {
+    const phaseNote =
+      phase === "Luteal" || phase === "Menstrual"
+        ? "Because you mentioned you may be in a lower-energy phase, even a 20–30 minute earlier wind-down could noticeably soften symptoms."
+        : "Even outside your bleed, your nervous system loves rhythm—consistent bed and wake times are a quiet superpower.";
+    return `Sleep is one of the most powerful wellness levers—especially around the luteal and menstrual phases. Start with a consistent wake time, gentle evening wind-down (dim lights, fewer screens, calming tea), and a short transition ritual like stretching or reading. ${phaseNote} If poor sleep persists or feels extreme, check in with a clinician. Financially, prioritize low-cost supports first—like a sleep mask or blackout curtains—before investing in higher-ticket gadgets.`;
+  }
+
+  if (text.includes("stress") || text.includes("burnout") || text.includes("anxiety")) {
+    return "Chronic stress and burnout can quietly drain both your energy and your finances. Start by building micro-moments of regulation into your day: 3 deep breaths before meetings, short walks between tasks, or 5 minutes of stretching when you close your laptop. If you can, protect at least one evening per week as a non-negotiable rest block. In your budget, consider shifting a small amount toward therapy, coaching, or calming practices that genuinely help you reset, even if that means pausing lower-impact expenses for a season.";
+  }
+
+  if (text.includes("exercise") || text.includes("workout") || text.includes("movement")) {
+    return "When it comes to movement, consistency beats intensity—especially across the menstrual cycle. In follicular and ovulatory phases, many people feel best with more energizing workouts like strength training or intervals. In luteal and menstrual phases, your body may prefer walking, Pilates, or yoga. Choose forms of movement that feel kind rather than punishing. Budget-wise, you don't need an expensive membership to benefit—start with walks, bodyweight strength at home, or affordable community classes, and upgrade only if it truly adds value for you.";
+  }
+
+  if (
+    text.includes("budget") ||
+    text.includes("money") ||
+    text.includes("spend") ||
+    text.includes("spending")
+  ) {
+    const budgetLine =
+      budget && budget > 0
+        ? `Since you mentioned a wellness budget around $${Math.round(
+            budget
+          )}, we can treat that as a container instead of a limit—decide what percentage goes to therapy, movement, food, or rest.`
+        : "You don't need a huge budget to start—simply noticing where your current wellness dollars go is a powerful first step.";
+    return `A wellness budget works best when it's intentional, not perfect. Begin by listing your current wellness-related expenses—therapy, fitness, supplements, apps, beauty, and self-care. Highlight which ones meaningfully improve your physical or mental health, and which feel more like impulse buys. Aim to protect the high-impact items and gradually trim or pause the rest. ${budgetLine} Even redirecting $30–$50 a month from low-impact spending to savings, debt payoff, or therapy can create more long-term ease.`;
+  }
+
+  if (text.includes("saving") || text.includes("savings") || text.includes("emergency")) {
+    return "Building savings for wellness and life emergencies is an act of self-care. Start with a small, realistic target—like one month of essential expenses over time—and automate a transfer on payday, even if it's a modest amount. You can also create a dedicated 'wellness sinking fund' for therapy, medical visits, or retreat-style rest, so those costs feel planned rather than stressful. If cash flow is tight, look for 1–2 small recurring expenses you can gently reduce and redirect into savings instead.";
+  }
+
+  if (text.includes("invest") || text.includes("investing")) {
+    return "Investing is about aligning your money with your future energy and needs. Before investing, it's helpful to have some emergency savings and a basic handle on debt and monthly cash flow. Many people start with employer retirement accounts or broad, low-fee index funds, and they invest consistently over time instead of trying to time the market. While this app can't give personalized investment advice, exploring educational resources and, if possible, a fee-only advisor can help you build a plan that supports your long-term wellness goals.";
+  }
+
+  if (text.includes("debt") || text.includes("credit card")) {
+    return "Debt can feel heavy, especially when you also want to spend on wellness. Start by listing your debts, minimum payments, and interest rates. Focus on making at least the minimums while choosing one balance to pay extra toward, even by a small amount. At the same time, protect a tiny wellness line in your budget—like $10–$20 a month for something that genuinely supports your body or mind—so your plan feels sustainable instead of depriving.";
+  }
+
+  return `Thank you for sharing that, ${name}. I might not be able to talk about every topic in depth, but I can absolutely help you explore how your hormones, sleep, movement, stress, and money habits are shaping the way you feel day to day. If you'd like, you can tell me where you are in your cycle, how you're sleeping, or what's feeling hard in your body or budget, and I'll offer ${tone} suggestions from there. This space is here to support you holistically, but it isn't a substitute for medical or financial advice.`;
+}
+
+export default function AdvisorPage() {
+  const [profile, setProfile] = useState<OnboardingProfile | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [nextId, setNextId] = useState(1);
+
+  useEffect(() => {
+    const loaded = loadOnboardingProfile();
+    setProfile(loaded);
+
+    const name = loaded?.name || "friend";
+    const goal =
+      loaded?.primaryGoal ||
+      "supporting your energy, hormones, habits, and money";
+    const tone = describeTone(loaded?.aiPersona);
+
+    setMessages([
+      {
+        id: 0,
+        role: "ai",
+        content:
+          `Hi ${name}, I'm your FemAI Advisor. I specialize in women's health, hormones, fitness habits, sleep, stress, and money—and I'll keep my tone ${tone}. ` +
+          `From what I know so far, I'm here to focus on ${goal.toLowerCase()}. What would you like guidance on today?`
+      }
+    ]);
+    setNextId(1);
+  }, []);
+
+  const handleSend = (e: FormEvent) => {
+    e.preventDefault();
+    const trimmed = input.trim();
+    if (!trimmed) return;
+
+    const userMessage: ChatMessage = {
+      id: nextId,
+      role: "user",
+      content: trimmed
+    };
+    const aiMessage: ChatMessage = {
+      id: nextId + 1,
+      role: "ai",
+      content: getAiResponse(trimmed, profile)
+    };
+
+    setMessages((prev) => [...prev, userMessage, aiMessage]);
+    setNextId((id) => id + 2);
+    setInput("");
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+          AI Wellness &amp; Money Advisor
+        </h1>
+        <p className="max-w-2xl text-sm text-slate-600 sm:text-base">
+          Ask about your cycle, symptoms, movement, sleep, stress, budgeting, or
+          wellness spending. You&apos;ll receive warm, practical guidance—not
+          judgment. This is educational support only, not medical or financial
+          advice.
+        </p>
+      </div>
+
+      <section className="glass-card flex h-[70vh] max-h-[620px] flex-col p-4 sm:p-6">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <p className="text-xs font-semibold text-slate-900">
+              FemAI Chat Coach
+            </p>
+            <p className="text-[11px] text-slate-500">
+              Specialized in women&apos;s health, hormones, and money.
+            </p>
+          </div>
+          <span className="pill text-[11px]">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            AI online
+          </span>
+        </div>
+
+        <div className="mt-3 flex-1 space-y-3 overflow-y-auto pr-1">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${
+                message.role === "user" ? "justify-end" : "justify-start"
+              }`}
+            >
+              <div
+                className={`max-w-[80%] rounded-2xl px-3 py-2.5 text-xs sm:text-sm ${
+                  message.role === "user"
+                    ? "bg-gradient-to-br from-lavender-500 to-blush-400 text-white shadow-md"
+                    : "bg-white/90 text-slate-800 shadow-sm"
+                }`}
+              >
+                {message.content}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <form
+          onSubmit={handleSend}
+          className="mt-3 space-y-2 border-t border-slate-100 pt-3"
+        >
+          <div className="flex items-end gap-2">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask about exercise during your luteal phase, how to budget for therapy, or ways to sleep better before your period..."
+              className="min-h-[60px] flex-1 resize-none rounded-2xl border border-lavender-100 bg-white/80 px-3 py-2 text-xs text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-lavender-400"
+            />
+            <button
+              type="submit"
+              className="primary-btn h-[60px] px-4 text-xs sm:px-5 sm:text-sm"
+            >
+              Send
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-500">
+            FemAI Advisor can offer education and suggestions, but it does not
+            replace care from licensed medical or financial professionals.
+          </p>
+        </form>
+      </section>
+    </div>
+  );
+}
